@@ -22,7 +22,7 @@ These features are intentionally transparent. They are not sufficient to reliabl
 
 ## Quick start
 
-Python 3.10+ is recommended.
+Python 3.9+ is recommended.
 
 ```bash
 python3 -m venv .venv
@@ -38,6 +38,20 @@ python main.py --url "http://secure-login-example.test/account/verify"
 ```
 
 The `.test` domain is reserved for testing. The script analyses the string only and never makes a network request.
+
+For a different reproducible hold-out split, provide an explicit seed and test fraction:
+
+```bash
+python main.py --seed 42 --test-size 0.25
+```
+
+The default data path is resolved relative to `main.py`, so the command also works when launched from another directory.
+
+Run the checks after installing the project dependencies:
+
+```bash
+python -m unittest discover -s tests -v
+```
 
 ## Dataset format
 
@@ -64,6 +78,8 @@ Because the sample dataset is deliberately small and constructed for teaching, t
 phishlens/
 ├── data/
 │   └── sample_urls.csv
+├── tests/
+│   └── test_main.py
 ├── main.py
 ├── requirements.txt
 ├── .gitignore

@@ -5,6 +5,7 @@ do not use its predictions to make real security decisions.
 """
 import argparse
 import re
+from pathlib import Path
 from urllib.parse import urlparse
 
 import pandas as pd
@@ -15,7 +16,9 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, classification_report
 
-DATA_PATH = "data/sample_urls.csv"
+PROJECT_ROOT = Path(__file__).resolve().parent
+DATA_PATH = PROJECT_ROOT / "data" / "sample_urls.csv"
+RANDOM_STATE = 42
 
 SUSPICIOUS_WORDS = {
     "login", "verify", "update", "secure", "account", "signin",
@@ -50,10 +53,16 @@ def extract_features(raw_url: str) -> dict:
 FEATURES = list(extract_features("https://example.com"))
 
 def load_data(path=DATA_PATH):
+    """Load and validate the labelled URL CSV used by the demo."""
     df = pd.read_csv(path)
     required = {"url", "label"}
     if not required.issubset(df.columns):
         raise ValueError(f"CSV must contain columns: {sorted(required)}")
+    if df["url"].isna().any() or df["url"].astype(str).str.strip().eq("").any():
+        raise ValueError("CSV contains an empty URL value.")
+    labels = set(df["label"].dropna().astype(int).unique())
+    if labels - {0, 1}:
+        raise ValueError("Labels must be binary integers: 0 or 1.")
     X = pd.DataFrame([extract_features(url) for url in df["url"]])
     y = df["label"].astype(int)
     return X, y
@@ -62,19 +71,20 @@ def build_models():
     return {
         "Logistic Regression": Pipeline([
             ("scale", StandardScaler()),
-            ("model", LogisticRegression(class_weight="balanced", max_iter=2000, random_state=42))
+            ("model", LogisticRegression(class_weight="balanced", max_iter=2000, random_state=RANDOM_STATE))
         ]),
         "Random Forest": RandomForestClassifier(
-            n_estimators=200, class_weight="balanced", random_state=42, max_depth=8
+            n_estimators=200, class_weight="balanced", random_state=RANDOM_STATE, max_depth=8
         ),
     }
 
-def evaluate(data_path=DATA_PATH):
+def evaluate(data_path=DATA_PATH, test_size=0.25, random_state=RANDOM_STATE):
+    """Fit both baselines on one reproducible stratified hold-out split."""
     X, y = load_data(data_path)
     if y.nunique() != 2 or y.value_counts().min() < 2:
         raise ValueError("Dataset needs at least two examples of each label.")
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.25, random_state=42, stratify=y
+        X, y, test_size=test_size, random_state=random_state, stratify=y
     )
     rows, fitted = [], {}
     for name, model in build_models().items():
@@ -116,10 +126,19 @@ def explain(url):
 def main():
     parser = argparse.ArgumentParser(description="PhishLens URL risk triage demo")
     parser.add_argument("--url", help="URL to analyse (never visited)")
-    parser.add_argument("--data", default=DATA_PATH, help="CSV with url,label columns")
+    parser.add_argument("--data", default=str(DATA_PATH), help="CSV with url,label columns")
+    parser.add_argument("--test-size", type=float, default=0.25,
+                        help="Fraction held out for evaluation (default: 0.25)")
+    parser.add_argument("--seed", type=int, default=RANDOM_STATE,
+                        help="Random seed for the train/test split (default: 42)")
     args = parser.parse_args()
 
-    results, model, X_test, y_test, pred, winner = evaluate(args.data)
+    if not 0 < args.test_size < 1:
+        parser.error("--test-size must be between 0 and 1.")
+
+    results, model, X_test, y_test, pred, winner = evaluate(
+        args.data, test_size=args.test_size, random_state=args.seed
+    )
     print("\nPhishLens | model evaluation")
     print(results.to_string(index=False, formatters={
         "accuracy": "{:.3f}".format, "precision": "{:.3f}".format,
