@@ -1,4 +1,4 @@
-# PhishLens 🔎
+# PhishLens 
 ### Explainable URL risk triage with classical machine learning
 
 PhishLens is a small, reproducible ML project that extracts interpretable lexical features from a URL, compares two classical classifiers, and reports held-out evaluation metrics. It does **not** open or fetch submitted URLs.
@@ -26,7 +26,7 @@ Python 3.9+ is recommended.
 
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate       # Windows: .venv\\Scripts\\activate
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 python main.py
 ```
